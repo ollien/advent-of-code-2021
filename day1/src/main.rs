@@ -1,3 +1,4 @@
+#![warn(clippy::all, clippy::pedantic)]
 use itertools::Itertools;
 use std::collections::VecDeque;
 use std::env;
