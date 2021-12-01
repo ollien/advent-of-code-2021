@@ -4,8 +4,6 @@ use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-const PART2_WINDOW_SIZE: usize = 3;
-
 fn part1(items: &[i32]) -> i32 {
     let mut prev: Option<i32> = None;
     let mut num_increasing = 0;
@@ -23,12 +21,16 @@ fn part1(items: &[i32]) -> i32 {
 }
 
 fn part2(items: &[i32]) -> i32 {
+    const WINDOW_SIZE: usize = 3;
+
     let mut num_increasing = 0;
     let mut window = VecDeque::<i32>::new();
     // Initialize the window with the first few elements
-    window.extend(&items[..PART2_WINDOW_SIZE]);
+    window.extend(&items[..WINDOW_SIZE]);
     let mut last_window_sum = window.iter().sum::<i32>();
-    for &item in &items[PART2_WINDOW_SIZE - 1..] {
+    for &item in &items[WINDOW_SIZE - 1..] {
+        // Ensure there are always only WINDOW_SIZE elements in the vec
+        // by popping first we won't realloc but this is AoC so that doesn't really matter
         window.pop_back();
         window.push_front(item);
 
