@@ -1,0 +1,4 @@
+*.code-workspace
+
+# Prevent accidentally committing inputs
+day*/*.txt
