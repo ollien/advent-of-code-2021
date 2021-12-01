@@ -1,7 +1,10 @@
+use itertools::Itertools;
 use std::collections::VecDeque;
 use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+
+const PART2_WINDOW_SIZE: usize = 3;
 
 fn part1(items: &[i32]) -> i32 {
     let mut prev: Option<i32> = None;
@@ -20,14 +23,12 @@ fn part1(items: &[i32]) -> i32 {
 }
 
 fn part2(items: &[i32]) -> i32 {
-    const WINDOW_SIZE: usize = 3;
-
     let mut num_increasing = 0;
     let mut window = VecDeque::<i32>::new();
     // Initialize the window with the first few elements
-    window.extend(&items[..WINDOW_SIZE]);
+    window.extend(&items[..PART2_WINDOW_SIZE]);
     let mut last_window_sum = window.iter().sum::<i32>();
-    for &item in &items[WINDOW_SIZE - 1..] {
+    for &item in &items[PART2_WINDOW_SIZE - 1..] {
         window.pop_back();
         window.push_front(item);
 
@@ -40,6 +41,26 @@ fn part2(items: &[i32]) -> i32 {
     }
 
     num_increasing
+}
+
+fn part1_itertools(items: &[i32]) -> usize {
+    items
+        .iter()
+        .tuple_windows()
+        .filter(|(last, current)| current > last)
+        .count()
+}
+
+fn part2_itertools(items: &[i32]) -> usize {
+    items
+        .iter()
+        .tuple_windows()
+        .filter(|(&third_to_last, &second_to_last, &last, &current)| {
+            let prev_window = third_to_last + second_to_last + last;
+            let current_window = second_to_last + last + current;
+            current_window > prev_window
+        })
+        .count()
 }
 
 fn main() {
@@ -56,4 +77,7 @@ fn main() {
 
     println!("Part 1: {}", part1(&items));
     println!("Part 2: {}", part2(&items));
+    println!("--- alternate solution ---");
+    println!("Part 1: {}", part1_itertools(&items));
+    println!("Part 2: {}", part2_itertools(&items));
 }
