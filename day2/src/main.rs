@@ -113,18 +113,21 @@ fn parse_line(line: &str) -> IResult<&str, Direction> {
 fn main() {
     let input_file_name = env::args().nth(1).expect("No input filename specified");
     let input_file = File::open(input_file_name).expect("Could not open input file");
-    let lines = BufReader::new(input_file)
+    let directions = BufReader::new(input_file)
         .lines()
         .map(|res| res.expect("Failed to read line"))
-        .collect::<Vec<_>>();
-
-    let directions = lines
-        .iter()
         .map(|line| {
-            parse_line(line)
-                .unwrap_or_else(|err| panic!("Failed to parse line '{}': {}", line, err))
+            let (remaining, direction) = parse_line(&line)
+                .unwrap_or_else(|err| panic!("Failed to parse line '{}': {}", line, err));
+
+            assert!(
+                remaining.is_empty(),
+                "Input remained after parsing: {}",
+                remaining
+            );
+
+            direction
         })
-        .map(|(_, direction)| direction)
         .collect::<Vec<_>>();
 
     println!("Part 1: {}", simulate(&directions, &Part::Part1));
