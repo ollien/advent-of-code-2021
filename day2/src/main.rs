@@ -90,6 +90,9 @@ fn simulate(directions: &[Direction], part: &Part) -> i32 {
 }
 
 fn parse_line(line: &str) -> IResult<&str, Direction> {
+    // using a parser combinator to split a string
+    // https://i.imgur.com/B7bfMdE.jpg
+    // (I really just want to get practice with nom because it's fun)
     let parse_direction = alt((tag("forward"), tag("down"), tag("up")));
     let (_, (raw_direction, magnitude)) = terminated(
         separated_pair(
