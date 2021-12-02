@@ -120,6 +120,7 @@ fn main() {
             let (remaining, direction) = parse_line(&line)
                 .unwrap_or_else(|err| panic!("Failed to parse line '{}': {}", line, err));
 
+            // Should never happen if the parse function succeeded
             assert!(
                 remaining.is_empty(),
                 "Input remained after parsing: {}",
