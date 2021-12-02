@@ -3,7 +3,6 @@
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
-    character::is_digit,
     combinator::{eof, map_res},
     sequence::{separated_pair, terminated},
     IResult,
@@ -98,7 +97,7 @@ fn parse_line(line: &str) -> IResult<&str, Direction> {
         separated_pair(
             parse_direction,
             tag(" "),
-            map_res(take_while1(|c| is_digit(c as u8)), str::parse),
+            map_res(take_while1(|c: char| c.is_ascii_digit()), str::parse),
         ),
         eof,
     )(line)?;
