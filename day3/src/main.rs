@@ -1,3 +1,4 @@
+#![warn(clippy::all, clippy::pedantic)]
 use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -57,20 +58,23 @@ fn calculate_rate_from_string(bit_string: &str) -> u32 {
     calculate_rate_from_bit_arr(&bit_arr)
 }
 
+/// Calculate a rate for the puzzle output
 fn calculate_rate_from_bit_arr(bits: &[u8]) -> u32 {
+    #[allow(clippy::cast_possible_truncation)]
     bits.iter()
         .rev()
         .enumerate()
         .fold(0_u32, |total, (i, &bit)| {
-            total + ((bit as u32) * 2_u32.pow(i as u32))
+            // This cast is technically a truncation but I know there's a small enough number of elements
+            total + (u32::from(bit) * 2_u32.pow(i as u32))
         })
 }
 
-fn update_count_vec_for_input_line(
+fn update_bit_count_vec_for_bit_string(
     bit_counts: &mut Vec<BitCounts>,
-    input_line: &str,
+    bit_string: &str,
 ) -> Result<(), Error> {
-    input_line.chars().enumerate().try_for_each(|(i, c)| {
+    bit_string.chars().enumerate().try_for_each(|(i, c)| {
         match bit_counts.get_mut(i) {
             None => {
                 let element = BitCounts::try_from(c)?;
@@ -86,17 +90,20 @@ fn update_count_vec_for_input_line(
     Ok(())
 }
 
+/// Count the number of bits in each position for every bit string. The return value is the number of zeroes and ones
+/// in each position
+fn count_bits<S: AsRef<str>>(bit_strings: &[S]) -> Result<Vec<BitCounts>, Error> {
+    bit_strings.iter().try_fold(
+        Vec::<BitCounts>::new(),
+        |mut counts, line| -> Result<_, Error> {
+            update_bit_count_vec_for_bit_string(&mut counts, line.as_ref())?;
+            Ok(counts)
+        },
+    )
+}
+
 fn part1(input_lines: &[String]) -> u32 {
-    let bit_counts = input_lines
-        .iter()
-        .try_fold(
-            Vec::<BitCounts>::new(),
-            |mut counts, line| -> Result<_, Error> {
-                update_count_vec_for_input_line(&mut counts, line)?;
-                Ok(counts)
-            },
-        )
-        .expect("Failed to count bits");
+    let bit_counts = count_bits(input_lines).expect("Failed to count bits");
 
     let most_common_bits = bit_counts
         .iter()
@@ -114,13 +121,14 @@ fn part1(input_lines: &[String]) -> u32 {
     gamma_rate * epsilon_rate
 }
 
-fn calculate_rating<F>(input_lines: &[String], get_bit: F) -> u32
+/// Calculate a rating (part 2), using the bit returned by `get_bit` to determine if an element should be discarded
+fn calculate_part2_rating<F>(input_lines: &[String], get_bit: F) -> Result<u32, Error>
 where
     F: Fn(MinMax<u8>) -> u8,
 {
     let mut remaining_values = input_lines
         .iter()
-        .map(|s| s.as_str())
+        .map(String::as_str)
         .collect::<Vec<&str>>();
 
     for i in 0..input_lines[0].len() {
@@ -129,23 +137,16 @@ where
             break;
         }
 
-        let remaining_bit_counts = remaining_values
-            .iter()
-            .try_fold(
-                Vec::<BitCounts>::new(),
-                |mut counts, line| -> Result<_, Error> {
-                    update_count_vec_for_input_line(&mut counts, line)?;
-                    Ok(counts)
-                },
-            )
-            .expect("Failed to count bits");
-
+        let remaining_bit_counts = count_bits(&remaining_values)?;
         let counts = &remaining_bit_counts[i];
         let most_common_bit = if counts.0 > counts.1 { 0_u8 } else { 1_u8 };
         let least_common_bit = if counts.0 <= counts.1 { 0_u8 } else { 1_u8 };
+
         remaining_values = remaining_values
             .into_iter()
             .filter(|val| {
+                // We know these will be zero or one... you can't truncate here
+                #[allow(clippy::cast_possible_truncation)]
                 let bit_at_position: u8 = val
                     .chars()
                     .nth(i)
@@ -171,11 +172,12 @@ where
         "Only one item should remain: {:?}",
         &remaining_values
     );
-    calculate_rate_from_string(remaining_values[0])
+
+    Ok(calculate_rate_from_string(remaining_values[0]))
 }
 
 fn part2(input_lines: &[String]) -> u32 {
-    let oxygen_rating = calculate_rating(
+    let oxygen_rating = calculate_part2_rating(
         input_lines,
         |MinMax {
              min: least_common,
@@ -187,9 +189,10 @@ fn part2(input_lines: &[String]) -> u32 {
                 most_common
             }
         },
-    );
+    )
+    .expect("Failed to calculate oxygen rating");
 
-    let co2_rating = calculate_rating(
+    let co2_rating = calculate_part2_rating(
         input_lines,
         |MinMax {
              min: least_common,
@@ -201,7 +204,8 @@ fn part2(input_lines: &[String]) -> u32 {
                 least_common
             }
         },
-    );
+    )
+    .expect("Failed to calculate CO2 rating");
 
     oxygen_rating * co2_rating
 }
