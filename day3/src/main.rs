@@ -154,28 +154,24 @@ where
         let remaining_bit_counts = count_bits(&remaining_values)?;
         let count_at_bit_index = &remaining_bit_counts[bit_index];
 
-        remaining_values = remaining_values
-            .into_iter()
-            .filter(|val| {
-                // We know these will be zero or one... you can't truncate here
-                #[allow(clippy::cast_possible_truncation)]
-                let bit_at_position: u8 = val
-                    .chars()
+        remaining_values.retain(|val| {
+            // We know these will be zero or one... you can't truncate here
+            #[allow(clippy::cast_possible_truncation)]
+            let bit_at_position: u8 =
+                val.chars()
                     .nth(bit_index)
                     // If either of these fail, our counter must have hit a serious problem
                     .expect("number of bits is different than counted number of bits")
                     .to_digit(2)
-                    .expect("binary number did not have binary digit")
-                    as u8;
+                    .expect("binary number did not have binary digit") as u8;
 
-                let bit_to_compare = get_bit(MinMax {
-                    min: count_at_bit_index.less_common_bit(),
-                    max: count_at_bit_index.more_common_bit(),
-                });
+            let bit_to_compare = get_bit(MinMax {
+                min: count_at_bit_index.less_common_bit(),
+                max: count_at_bit_index.more_common_bit(),
+            });
 
-                bit_at_position == bit_to_compare
-            })
-            .collect::<Vec<&str>>();
+            bit_at_position == bit_to_compare
+        });
     }
 
     // Stated by puzzle
