@@ -39,6 +39,26 @@ impl AddAssign<BitCounts> for &mut BitCounts {
     }
 }
 
+impl BitCounts {
+    /// Get the more common bit of the two
+    fn more_common_bit(&self) -> u8 {
+        if self.0 > self.1 {
+            0_u8
+        } else {
+            1_u8
+        }
+    }
+
+    /// Get the less common bit of the two
+    fn less_common_bit(&self) -> u8 {
+        if self.more_common_bit() == 0_u8 {
+            1_u8
+        } else {
+            0_u8
+        }
+    }
+}
+
 fn calculate_rate_from_string(bit_string: &str) -> u32 {
     let bit_arr = bit_string
         .chars()
@@ -101,12 +121,12 @@ fn part1(input_lines: &[String]) -> u32 {
 
     let most_common_bits = bit_counts
         .iter()
-        .map(|counts| if counts.0 > counts.1 { 0_u8 } else { 1_u8 })
+        .map(BitCounts::more_common_bit)
         .collect::<Vec<u8>>();
 
     let least_common_bits = bit_counts
         .iter()
-        .map(|counts| if counts.0 <= counts.1 { 0_u8 } else { 1_u8 })
+        .map(BitCounts::less_common_bit)
         .collect::<Vec<u8>>();
 
     let gamma_rate = calculate_rate_from_bit_arr(&most_common_bits);
@@ -125,16 +145,14 @@ where
         .map(String::as_str)
         .collect::<Vec<&str>>();
 
-    for i in 0..input_lines[0].len() {
+    for bit_index in 0..input_lines[0].len() {
         // Puzzle states that this is the halting point
         if remaining_values.len() == 1 {
             break;
         }
 
         let remaining_bit_counts = count_bits(&remaining_values)?;
-        let counts = &remaining_bit_counts[i];
-        let most_common_bit = if counts.0 > counts.1 { 0_u8 } else { 1_u8 };
-        let least_common_bit = if counts.0 <= counts.1 { 0_u8 } else { 1_u8 };
+        let count_at_bit_index = &remaining_bit_counts[bit_index];
 
         remaining_values = remaining_values
             .into_iter()
@@ -143,7 +161,7 @@ where
                 #[allow(clippy::cast_possible_truncation)]
                 let bit_at_position: u8 = val
                     .chars()
-                    .nth(i)
+                    .nth(bit_index)
                     // If either of these fail, our counter must have hit a serious problem
                     .expect("number of bits is different than counted number of bits")
                     .to_digit(2)
@@ -151,8 +169,8 @@ where
                     as u8;
 
                 let bit_to_compare = get_bit(MinMax {
-                    min: least_common_bit,
-                    max: most_common_bit,
+                    min: count_at_bit_index.less_common_bit(),
+                    max: count_at_bit_index.more_common_bit(),
                 });
 
                 bit_at_position == bit_to_compare
