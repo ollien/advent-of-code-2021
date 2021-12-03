@@ -2,7 +2,7 @@
 use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::ops::{Add, AddAssign};
+use std::ops::AddAssign;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -30,14 +30,8 @@ impl TryFrom<char> for BitCounts {
     }
 }
 
-impl Add<BitCounts> for BitCounts {
-    type Output = BitCounts;
-    fn add(self, rhs: BitCounts) -> Self::Output {
-        Self(self.0 + rhs.0, self.1 + rhs.1)
-    }
-}
-
-// Just doing AddAssign for &mut BitCounts is a bit improper, but I don't care enough just for advent of code
+// Just doing AddAssign for &mut BitCounts (hell, not even implementing Add) is a bit improper (we should implement
+// all permutations), but I don't care enough just for this problem.
 impl AddAssign<BitCounts> for &mut BitCounts {
     fn add_assign(&mut self, rhs: BitCounts) {
         self.0 += rhs.0;
