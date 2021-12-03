@@ -59,21 +59,8 @@ impl BitCounts {
     }
 }
 
-fn calculate_rate_from_string(bit_string: &str) -> u32 {
-    let bit_arr = bit_string
-        .chars()
-        .map(|c| match c {
-            '0' => 0,
-            '1' => 1,
-            _ => panic!("Invalid binary string"),
-        })
-        .collect::<Vec<u8>>();
-
-    calculate_rate_from_bit_arr(&bit_arr)
-}
-
 /// Calculate a rate for the puzzle output
-fn calculate_rate_from_bit_arr(bits: &[u8]) -> u32 {
+fn calculate_rate(bits: &[u8]) -> u32 {
     #[allow(clippy::cast_possible_truncation)]
     bits.iter()
         .rev()
@@ -82,6 +69,18 @@ fn calculate_rate_from_bit_arr(bits: &[u8]) -> u32 {
             // This cast is technically a truncation but I know there's a small enough number of elements
             total + (u32::from(bit) * 2_u32.pow(i as u32))
         })
+}
+
+/// Convert a string to a Vec of bits
+fn string_to_bit_vec(bit_string: &str) -> Vec<u8> {
+    bit_string
+        .chars()
+        .map(|c| match c {
+            '0' => 0,
+            '1' => 1,
+            _ => panic!("Invalid binary string"),
+        })
+        .collect()
 }
 
 fn update_bit_count_vec_for_bit_string(
@@ -129,8 +128,8 @@ fn part1(input_lines: &[String]) -> u32 {
         .map(BitCounts::less_common_bit)
         .collect::<Vec<u8>>();
 
-    let gamma_rate = calculate_rate_from_bit_arr(&most_common_bits);
-    let epsilon_rate = calculate_rate_from_bit_arr(&least_common_bits);
+    let gamma_rate = calculate_rate(&most_common_bits);
+    let epsilon_rate = calculate_rate(&least_common_bits);
 
     gamma_rate * epsilon_rate
 }
@@ -181,7 +180,10 @@ where
         &remaining_values
     );
 
-    Ok(calculate_rate_from_string(remaining_values[0]))
+    // Yes, we allocate here unnecessarily (we could just count in the string chars directly), but _shrug_.
+    // I didn't want to duplicate the logic just to avoid it for such a simple problem
+    let bit_vec = string_to_bit_vec(remaining_values);
+    Ok(calculate_rate(&bit_vec))
 }
 
 fn part2(input_lines: &[String]) -> u32 {
