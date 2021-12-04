@@ -149,11 +149,13 @@ impl BingoBoard {
 }
 
 impl<'a> Iterator for BingoPlayer<'a> {
-    type Item = (u8, BingoBoard);
+    // Yields the winning call and all of the boards that won with that call
+    type Item = (u8, Vec<BingoBoard>);
+
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(call) = self.game.calls.pop_front() {
             let boards = &mut self.game.boards;
-            let mut winning_board: Option<BingoBoard> = None;
+            let mut winning_boards: Vec<BingoBoard> = vec![];
             for BoardState {
                 won: board_has_won,
                 board,
@@ -167,13 +169,11 @@ impl<'a> Iterator for BingoPlayer<'a> {
 
                 board.mark_n(call);
                 if board.is_winner() {
-                    // This is a bit of a hack, but it will work given the use of the iterator in part 2.
-                    // (in production code I'd probably return _all_ boards that have won)
-                    // If two boards win at the same time, the last one needs.
-                    //
-                    // We should mark all boards, though, and not return immediately, so that an early board winning
+                    // We should mark all boards, and not return immediately, so that an early board winning
                     // does not ruin the winners for everyone else
-                    winning_board = Some(board.clone());
+                    //
+                    // Also, more than one board can win in the same turn (I've seen it happen!)
+                    winning_boards.push(board.clone());
 
                     // We could probably remove the board from the boards vec, but for debugging, this changes the
                     // indexes, which makes it difficult to follow the continuity of boards
@@ -181,8 +181,8 @@ impl<'a> Iterator for BingoPlayer<'a> {
                 }
             }
 
-            if let Some(winner) = winning_board {
-                return Some((call, winner));
+            if !winning_boards.is_empty() {
+                return Some((call, winning_boards));
             }
         }
 
@@ -243,6 +243,15 @@ fn part1(input: &Input) -> u32 {
     let (winning_call, winning_board) = game
         .play()
         .next()
+        .map(|(winning_call, winning_boards)| {
+            (
+                winning_call,
+                winning_boards
+                    .into_iter()
+                    .next()
+                    .expect("Got back empty vec of winners, which shouldn't ever happen"),
+            )
+        })
         .expect("Puzzle produced no winner for any bingo boards");
 
     calculate_score(&winning_board, winning_call.into())
@@ -253,6 +262,15 @@ fn part2(input: &Input) -> u32 {
     let (winning_call, winning_board) = game
         .play()
         .last()
+        .map(|(winning_call, winning_boards)| {
+            (
+                winning_call,
+                winning_boards
+                    .into_iter()
+                    .last()
+                    .expect("Got back empty vec of winners, which shouldn't ever happen"),
+            )
+        })
         .expect("Puzzle produced no winner for any bingo boards");
 
     calculate_score(&winning_board, winning_call.into())
