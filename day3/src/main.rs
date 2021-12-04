@@ -182,7 +182,7 @@ where
 
     // Yes, we allocate here unnecessarily (we could just count in the string chars directly), but _shrug_.
     // I didn't want to duplicate the logic just to avoid it for such a simple problem
-    let bit_vec = string_to_bit_vec(remaining_values);
+    let bit_vec = string_to_bit_vec(remaining_values[0]);
     Ok(calculate_rate(&bit_vec))
 }
 
