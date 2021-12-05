@@ -5,12 +5,13 @@ use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-use nom::bytes::complete::tag;
-use nom::combinator::eof;
-use nom::sequence::terminated;
 use nom::{
-    bytes::complete::take_while1, character::complete::char, combinator::map_res,
-    sequence::separated_pair, IResult,
+    bytes::complete::{tag, take_while1},
+    character::complete::char,
+    combinator::eof,
+    combinator::map_res,
+    sequence::{separated_pair, terminated},
+    IResult,
 };
 use thiserror::Error;
 
