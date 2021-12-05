@@ -3,8 +3,8 @@
 use nom::{
     bytes::complete::{tag, take_while1},
     character::complete::char,
-    combinator::{eof, map_res, opt},
-    multi::{many0, many_m_n, separated_list1},
+    combinator::{eof, fail, map_res, opt},
+    multi::{many0, separated_list1},
     sequence::{preceded, separated_pair, tuple},
     IResult,
 };
@@ -201,11 +201,13 @@ fn parse_bingo_calls(calls_line: &str) -> IResult<&str, Vec<u8>> {
 fn parse_bingo_board(input_chunk: &str) -> IResult<&str, BingoBoard> {
     let (remaining, raw_board) = separated_list1(
         char('\n'),
-        separated_list1(
-            many_m_n(1, 2, char(' ')),
-            preceded(opt(char(' ')), parse_bingo_number),
-        ),
+        separated_list1(char(' '), preceded(opt(char(' ')), parse_bingo_number)),
     )(input_chunk)?;
+
+    // If we didn't get the correct board back from reading, this board is not parsable.
+    if raw_board.len() != BOARD_SIZE || raw_board[0].len() != BOARD_SIZE {
+        return fail(input_chunk);
+    }
 
     let mut board = [[BingoTile::Unmarked(0_u8); BOARD_SIZE]; BOARD_SIZE];
     for i in 0..board.len() {
