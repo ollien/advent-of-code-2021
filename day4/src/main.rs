@@ -37,12 +37,13 @@ struct BoardState {
     board: BingoBoard,
 }
 
+/// `BingoGame` represents an active game of bingo and its state.
 struct BingoGame {
     calls: VecDeque<u8>,
     boards: Vec<BoardState>,
 }
 
-/// `BingoPlayer` is an iterator that will iterate over the successive winners of a bingo game.
+/// `BingoPlayer` is an iterator that will iterate over the successive winners of a `BingoGame`
 struct BingoPlayer<'a> {
     game: &'a mut BingoGame,
 }
