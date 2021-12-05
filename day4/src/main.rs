@@ -5,7 +5,7 @@ use nom::{
     character::complete::char,
     combinator::{eof, fail, map_res, opt},
     multi::{many0, separated_list1},
-    sequence::{preceded, separated_pair, tuple},
+    sequence::{preceded, separated_pair, terminated, tuple},
     IResult,
 };
 use std::collections::VecDeque;
@@ -280,15 +280,14 @@ fn part2(input: &Input) -> u32 {
 }
 
 fn parse_input(input: &str) -> IResult<&str, Input> {
-    let (_, ((calls, boards), _, _)) = tuple((
+    let (_, (calls, boards)) = terminated(
         separated_pair(
             parse_bingo_calls,
             tag("\n\n"),
             separated_list1(tag("\n\n"), parse_bingo_board),
         ),
-        many0(tag("\n")),
-        eof,
-    ))(input)?;
+        tuple((many0(tag("\n")), eof)),
+    )(input)?;
 
     let input = Input { calls, boards };
 
