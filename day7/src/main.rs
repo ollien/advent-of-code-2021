@@ -22,7 +22,7 @@ fn run(input: &[i32], part: &Part) -> i32 {
     // "largest" on each of the bounds
     //
     // Honestly I didn't expect this to work on both parts
-    let costs = (smallest..largest)
+    (smallest..largest)
         .map(|possible_destination| {
             input
                 .iter()
@@ -34,14 +34,11 @@ fn run(input: &[i32], part: &Part) -> i32 {
                         Part::Part2 => steps * (steps + 1) / 2,
                     }
                 })
-                .sum()
+                .sum::<i32>()
         })
-        .collect::<Vec<i32>>();
-
-    *costs
-        .iter()
         .min()
-        .expect("fuels list has size equal to zero")
+        // We already know there will be at least one element
+        .unwrap()
 }
 
 fn main() {
