@@ -126,6 +126,7 @@ impl SevenSegmentSignals {
         ]);
 
         let sorted_str = s.chars().sorted().collect::<String>();
+        // Could this be a map? Yes. Is it? No.
         if sorted_str == one {
             Ok(1)
         } else if sorted_str == two {
