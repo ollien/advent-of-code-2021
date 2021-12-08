@@ -9,3 +9,6 @@ edition = "2021"
 nom = "7.1"
 itertools = "0.10"
 thiserror = "1.0"
+
+[features]
+debug_print = []

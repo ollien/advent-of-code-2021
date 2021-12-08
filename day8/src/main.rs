@@ -18,6 +18,16 @@ use thiserror::Error;
 
 const SEGMENT_CHARS: &[char] = &['a', 'b', 'c', 'd', 'e', 'f', 'g'];
 
+// A wrapper for println that only prints in debug mode
+macro_rules! dprintln {
+    () => {
+        #[cfg(feature = "debug_print")]
+        println!() };
+    ($($arg : tt) *) => {
+        #[cfg(feature = "debug_print")]
+        println!($($arg) *)
+    };
+}
 #[derive(Debug, Clone)]
 struct SignalInfo {
     signal_patterns: Vec<String>,
@@ -243,7 +253,7 @@ fn infer_segments(signal_info: &SignalInfo) -> SevenSegmentSignals {
     assert_eq!(seven_one_difference.len(), 1);
 
     let top_segment = **seven_one_difference.iter().next().unwrap();
-    println!("top => {}", top_segment);
+    dprintln!("top => {}", top_segment);
 
     let four_signals = make_char_set(
         num_to_signal_map
@@ -282,7 +292,7 @@ fn infer_segments(signal_info: &SignalInfo) -> SevenSegmentSignals {
     let middle_segment_set = &one_element_left_from_six_set[0];
     assert_eq!(middle_segment_set.len(), 1);
     let middle_segment = *middle_segment_set.iter().next().unwrap();
-    println!("middle => {}", middle_segment);
+    dprintln!("middle => {}", middle_segment);
 
     // Now that we know the middle, the only element left in the original "four one difference" set will be the top left
     let top_left_segment_set = four_one_difference
@@ -291,7 +301,7 @@ fn infer_segments(signal_info: &SignalInfo) -> SevenSegmentSignals {
         .collect::<Vec<_>>();
     assert_eq!(top_left_segment_set.len(), 1);
     let top_left_segment = *top_left_segment_set[0];
-    println!("top left => {}", top_left_segment);
+    dprintln!("top left => {}", top_left_segment);
 
     // Finding the top right segment is pretty easy. If we consider the segments of the "one", there is only one
     // six-element segment which these sets is not a super-set of the "one": the top right.
@@ -305,7 +315,7 @@ fn infer_segments(signal_info: &SignalInfo) -> SevenSegmentSignals {
     let top_right_difference = one_signals.difference(five_signals).collect::<HashSet<_>>();
     assert_eq!(top_right_difference.len(), 1);
     let top_right_segment = **top_right_difference.iter().next().unwrap();
-    println!("top right => {}", top_right_segment);
+    dprintln!("top right => {}", top_right_segment);
 
     // And of course, knowing the top right, we know the bottom right, given there's only one other element in the one.
     let bottom_right_set = one_signals
@@ -313,7 +323,7 @@ fn infer_segments(signal_info: &SignalInfo) -> SevenSegmentSignals {
         .filter(|&&c| c != top_right_segment)
         .collect::<HashSet<_>>();
     let bottom_right_segment = **bottom_right_set.iter().next().unwrap();
-    println!("bottom right => {}", bottom_right_segment);
+    dprintln!("bottom right => {}", bottom_right_segment);
 
     // Now that we know the bottom and top left, of the six signal elements, we can uniquely identify the nine.
     // Of our possible input signals, the only one it _doesn't_ have must be the bottom left.
@@ -331,7 +341,7 @@ fn infer_segments(signal_info: &SignalInfo) -> SevenSegmentSignals {
         .collect::<HashSet<_>>();
     assert_eq!(bottom_left_set.len(), 1);
     let bottom_left_segment = **bottom_left_set.iter().next().unwrap();
-    println!("bottom_left => {}", bottom_left_segment);
+    dprintln!("bottom_left => {}", bottom_left_segment);
 
     // aaaand all that's left is the bottom
     let all_but_bottom = vec![
@@ -352,7 +362,7 @@ fn infer_segments(signal_info: &SignalInfo) -> SevenSegmentSignals {
 
     let bottom_segment = **bottom_set.iter().next().unwrap();
 
-    println!("bottom => {}", bottom_segment);
+    dprintln!("bottom => {}", bottom_segment);
 
     SevenSegmentSignals {
         top: top_segment,
@@ -366,11 +376,13 @@ fn infer_segments(signal_info: &SignalInfo) -> SevenSegmentSignals {
 }
 
 fn part2(signal_infos: &[SignalInfo]) -> u32 {
+    // i shows as unused because of the conditional compilation on dprintln
+    #[allow(unused_variables)]
     signal_infos
         .iter()
         .enumerate()
         .map(|(i, signal_info)| {
-            println!("Item {}", i + 1);
+            dprintln!("Item {}", i + 1);
             let segments = infer_segments(signal_info);
             let res = signal_info
                 .output_values
@@ -383,7 +395,7 @@ fn part2(signal_infos: &[SignalInfo]) -> u32 {
                 })
                 .fold(0_u32, |total, n: u32| (total * 10) + n);
 
-            println!("{}\n", res);
+            dprintln!("{}\n", res);
             res
         })
         .sum()
