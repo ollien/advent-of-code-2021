@@ -250,10 +250,11 @@ fn infer_segments(signal_info: &SignalInfo) -> SevenSegmentSignals {
     );
     let seven_one_difference = seven_signals
         .difference(&one_signals)
+        .copied()
         .collect::<HashSet<_>>();
     assert_eq!(seven_one_difference.len(), 1);
 
-    let top_segment = **seven_one_difference.iter().next().unwrap();
+    let top_segment = *seven_one_difference.iter().next().unwrap();
     dprintln!("top => {}", top_segment);
 
     let four_signals = make_char_set(
@@ -311,19 +312,22 @@ fn infer_segments(signal_info: &SignalInfo) -> SevenSegmentSignals {
         .filter(|set| !set.is_superset(&one_signals))
         .collect::<Vec<_>>();
     assert_eq!(five_signals_set.len(), 1);
-
     let five_signals = five_signals_set[0];
-    let top_right_difference = one_signals.difference(five_signals).collect::<HashSet<_>>();
+    let top_right_difference = one_signals
+        .difference(five_signals)
+        .copied()
+        .collect::<HashSet<_>>();
     assert_eq!(top_right_difference.len(), 1);
-    let top_right_segment = **top_right_difference.iter().next().unwrap();
+    let top_right_segment = *top_right_difference.iter().next().unwrap();
     dprintln!("top right => {}", top_right_segment);
 
     // And of course, knowing the top right, we know the bottom right, given there's only one other element in the one.
     let bottom_right_set = one_signals
         .iter()
-        .filter(|&&c| c != top_right_segment)
+        .copied()
+        .filter(|&c| c != top_right_segment)
         .collect::<HashSet<_>>();
-    let bottom_right_segment = **bottom_right_set.iter().next().unwrap();
+    let bottom_right_segment = *bottom_right_set.iter().next().unwrap();
     dprintln!("bottom right => {}", bottom_right_segment);
 
     // Now that we know the bottom and top left, of the six signal elements, we can uniquely identify the nine.
@@ -339,9 +343,10 @@ fn infer_segments(signal_info: &SignalInfo) -> SevenSegmentSignals {
 
     let bottom_left_set = segment_chars_set
         .difference(nine_char_set)
+        .copied()
         .collect::<HashSet<_>>();
     assert_eq!(bottom_left_set.len(), 1);
-    let bottom_left_segment = **bottom_left_set.iter().next().unwrap();
+    let bottom_left_segment = *bottom_left_set.iter().next().unwrap();
     dprintln!("bottom_left => {}", bottom_left_segment);
 
     // aaaand all that's left is the bottom
@@ -358,10 +363,11 @@ fn infer_segments(signal_info: &SignalInfo) -> SevenSegmentSignals {
 
     let bottom_set = segment_chars_set
         .difference(&all_but_bottom)
+        .copied()
         .collect::<HashSet<_>>();
     assert_eq!(bottom_set.len(), 1);
 
-    let bottom_segment = **bottom_set.iter().next().unwrap();
+    let bottom_segment = *bottom_set.iter().next().unwrap();
 
     dprintln!("bottom => {}", bottom_segment);
 
