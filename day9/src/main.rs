@@ -157,6 +157,12 @@ fn main() {
         })
         .collect::<Vec<_>>();
 
+    let first_row_length = input_lines.get(0).expect("input must be non-empty").len();
+    assert!(
+        input_lines.iter().all(|row| row.len() == first_row_length),
+        "All input lines must be the same length"
+    );
+
     println!("Part 1: {}", part1(&input_lines));
     println!("Part 2: {}", part2(&input_lines));
 }
