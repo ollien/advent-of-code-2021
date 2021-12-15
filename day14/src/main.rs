@@ -1,7 +1,6 @@
-use std::collections::{HashMap, LinkedList};
+use std::collections::HashMap;
 use std::{env, fs};
 
-use itertools::Itertools;
 use nom::bytes::complete::{tag, take_while1};
 use nom::combinator::eof;
 use nom::multi::{many0, separated_list1};
@@ -27,57 +26,88 @@ fn parse_input(input: &str) -> IResult<&str, (&str, Vec<(&str, &str)>)> {
     )(input)
 }
 
-fn part1(template: &str, mappings: &HashMap<&str, &str>) -> usize {
-    let mut polymer = template
-        .chars()
-        .enumerate()
-        .map(|(i, _)| &template[i..i + 1])
-        .collect::<LinkedList<&str>>();
+fn get_all_pairs(template: &str) -> Vec<&str> {
+    let mut pairs = Vec::<&str>::new();
+    for i in 0..template.len() - 1 {
+        let window = &template[i..=i + 1];
+        pairs.push(window);
+    }
 
-    for step in 0..10 {
-        println!("Step: {}", step);
-        let rules_to_apply = polymer
-            .iter()
-            .enumerate()
-            .tuple_windows()
-            .filter_map(|((_, s1), (i, s2))| {
-                mappings
-                    .iter()
-                    .find(|(key, _)| itertools::equal(s1.chars().chain(s2.chars()), key.chars()))
-                    .map(|(_, insertion)| (i, insertion))
-            })
-            .collect::<Vec<_>>();
+    pairs
+}
 
-        for (insert_index, insertion) in rules_to_apply.into_iter().rev() {
-            let mut end = polymer.split_off(insert_index);
-            polymer.push_back(insertion);
-            polymer.append(&mut end);
+fn run(template: &str, mappings: &HashMap<&str, char>, num_iterations: usize) -> u64 {
+    let mut pair_counts = mappings
+        .keys()
+        .copied()
+        .map(|pair| (pair, 0))
+        .chain(get_all_pairs(template).into_iter().map(|pair| (pair, 1)))
+        .collect::<HashMap<&str, u64>>();
+
+    let mut element_counts = HashMap::<char, u64>::new();
+    for c in template.chars() {
+        *element_counts.entry(c).or_insert(0) += 1
+    }
+
+    for _ in 0..num_iterations {
+        let pair_iter = pair_counts.iter().filter(|(_, &count)| count > 0);
+        let mut rule_application_counts = HashMap::<String, i64>::new();
+        for (pair, &count) in pair_iter {
+            let new_char = mappings
+                .get(pair)
+                .unwrap_or_else(|| panic!("could not find mapping for rule {}", pair));
+
+            *element_counts.entry(*new_char).or_insert(0) += count;
+            *rule_application_counts.entry(pair.to_string()).or_insert(0) -=
+                i64::try_from(count).unwrap();
+
+            for (i, c) in pair.chars().enumerate() {
+                let rule_output = if i == 0 {
+                    format!("{}{}", c, new_char)
+                } else {
+                    format!("{}{}", new_char, c)
+                };
+
+                *rule_application_counts.entry(rule_output).or_insert(0) +=
+                    i64::try_from(count).unwrap();
+            }
+        }
+
+        for (pair, count) in rule_application_counts {
+            let current_pair_count = pair_counts.get_mut(pair.as_str()).unwrap_or_else(|| {
+                panic!(
+                    "somehow produced pair {} which is not in the rules map",
+                    pair
+                )
+            });
+
+            if count > 0 {
+                *current_pair_count = current_pair_count.saturating_add(count as u64)
+            } else {
+                *current_pair_count = current_pair_count.saturating_sub(-count as u64)
+            }
         }
     }
 
-    let mut frequency_table = HashMap::<&str, usize>::new();
-    for element in polymer {
-        *frequency_table.entry(element).or_insert(0) += 1
-    }
-
-    let most_common = frequency_table
-        .iter()
-        .max_by(|(_, count1), (_, count2)| count1.cmp(count2))
-        .unwrap();
-
-    let least_common = frequency_table
-        .iter()
-        .min_by(|(_, count1), (_, count2)| count1.cmp(count2))
-        .unwrap();
-
-    most_common.1 - least_common.1
+    element_counts.values().max().unwrap() - element_counts.values().min().unwrap()
 }
 
 fn main() {
     let input_file_name = env::args().nth(1).expect("No input filename specified");
     let input = fs::read_to_string(input_file_name).expect("Failed to read input file");
-    let (_, (template, raw_mappings)) = parse_input(&input).expect("Failed to parse inputt");
-    let mappings = raw_mappings.into_iter().collect::<HashMap<_, _>>();
+    let (_, (template, raw_mappings)) = parse_input(&input).expect("Failed to parse input");
+    let mappings = raw_mappings
+        .into_iter()
+        .map(|(rule, mapping)| {
+            if mapping.len() != 1 {
+                // This could be done in the parser but nom was giving me difficulty and this was easier
+                panic!("Rules should only have a length of one");
+            }
 
-    println!("Part 1: {}", part1(template, &mappings));
+            (rule, mapping.chars().next().unwrap())
+        })
+        .collect::<HashMap<_, _>>();
+
+    println!("Part 1: {}", run(template, &mappings, 10));
+    println!("Part 2: {}", run(template, &mappings, 40));
 }
