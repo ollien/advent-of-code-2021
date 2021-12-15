@@ -81,27 +81,29 @@ fn get_adjacent_indices(
     res
 }
 
+/// Find the final cost from source to target within the given input board.
+/// The `node_parents` map must provide a valid ancestry from start to finish
+/// using Djikstra's algorithm. If there is no path, None is returned.
 fn find_cost_from_path(
     input: &[Vec<u8>],
     source: (usize, usize),
     target: (usize, usize),
     node_parents: &HashMap<(usize, usize), (usize, usize)>,
-) -> u32 {
+) -> Option<u32> {
     let mut cost_cursor = target;
     let mut cost = 0;
 
     while cost_cursor != source {
         cost += u32::from(input[cost_cursor.0][cost_cursor.1]);
-        let parent = node_parents
-            .get(&cost_cursor)
-            .expect("Parent map has a dangling entry");
+        let parent = node_parents.get(&cost_cursor)?;
 
         cost_cursor = *parent;
     }
 
-    cost
+    Some(cost)
 }
 
+/// Part 1 will search for the solved path using Djikstra's algorithm
 fn part1(input: &[Vec<u8>]) -> u32 {
     let mut risks = HashMap::<(usize, usize), u32>::new();
     let mut node_parents = HashMap::<(usize, usize), (usize, usize)>::new();
@@ -120,6 +122,12 @@ fn part1(input: &[Vec<u8>]) -> u32 {
             break;
         }
 
+        // From Wikipedia:
+        //
+        // Yet another alternative is to add nodes unconditionally to the priority queue and to instead check after
+        // extraction that no shorter connection was found yet. This can be done by additionally extracting the
+        // associated priority p from the queue and only processing further if p == dist[u] inside the while Q
+        // is not empty loop.
         if visiting_node.risk != *risks.get(&visiting_node.position).unwrap() {
             continue;
         }
@@ -142,6 +150,38 @@ fn part1(input: &[Vec<u8>]) -> u32 {
     }
 
     find_cost_from_path(input, (0, 0), target_pos, &node_parents)
+        .expect("No cost could be calculated; invalid ancestry map is likely")
+}
+
+/// Generate the expanded board for part 2
+fn generate_expanded_board(input: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    let mut expanded_input = vec![];
+    for i in 0..input.len() * 5 {
+        let mut row = vec![];
+        let normalized_row_idx = i % input.len();
+        for j in 0..input[normalized_row_idx].len() * 5 {
+            let original_pos = (i % input.len(), j % input[normalized_row_idx].len());
+            let original_risk = input[original_pos.0][original_pos.1];
+
+            let row_tile = u8::try_from(i / input.len()).unwrap();
+            let col_tile = u8::try_from(j / input.len()).unwrap();
+
+            let risk_offset = row_tile + col_tile;
+            let new_risk_candidate = original_risk + risk_offset;
+            let wrapped_risk = (new_risk_candidate - 1) % 9 + 1;
+
+            row.push(wrapped_risk);
+        }
+
+        expanded_input.push(row);
+    }
+
+    expanded_input
+}
+
+fn part2(input: &[Vec<u8>]) -> u32 {
+    let expanded_input = generate_expanded_board(input);
+    part1(&expanded_input)
 }
 
 fn main() {
@@ -170,4 +210,5 @@ fn main() {
     );
 
     println!("Part 1: {}", part1(&input_lines));
+    println!("Part 2: {}", part2(&input_lines));
 }
