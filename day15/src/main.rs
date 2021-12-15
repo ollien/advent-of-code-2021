@@ -153,16 +153,18 @@ fn part1(input: &[Vec<u8>]) -> u32 {
         .expect("No cost could be calculated; invalid ancestry map is likely")
 }
 
+/// Create an iterator that iterates over the given slice n times
+fn iterate_slice_n_times<T>(slice: &[T], n: usize) -> impl Iterator<Item = &T> {
+    let num_to_take = slice.len() * n;
+    slice.iter().cycle().take(num_to_take)
+}
+
 /// Generate the expanded board for part 2
 fn generate_expanded_board(input: &[Vec<u8>]) -> Vec<Vec<u8>> {
     let mut expanded_input = vec![];
-    for i in 0..input.len() * 5 {
-        let mut row = vec![];
-        let normalized_row_idx = i % input.len();
-        for j in 0..input[normalized_row_idx].len() * 5 {
-            let original_pos = (i % input.len(), j % input[normalized_row_idx].len());
-            let original_risk = input[original_pos.0][original_pos.1];
-
+    for (i, row) in iterate_slice_n_times(input, 5).enumerate() {
+        let mut res_row = vec![];
+        for (j, original_risk) in iterate_slice_n_times(row, 5).enumerate() {
             let row_tile = u8::try_from(i / input.len()).unwrap();
             let col_tile = u8::try_from(j / input.len()).unwrap();
 
@@ -170,10 +172,10 @@ fn generate_expanded_board(input: &[Vec<u8>]) -> Vec<Vec<u8>> {
             let new_risk_candidate = original_risk + risk_offset;
             let wrapped_risk = (new_risk_candidate - 1) % 9 + 1;
 
-            row.push(wrapped_risk);
+            res_row.push(wrapped_risk);
         }
 
-        expanded_input.push(row);
+        expanded_input.push(res_row);
     }
 
     expanded_input
