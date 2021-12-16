@@ -1,3 +1,4 @@
+#![warn(clippy::all, clippy::pedantic)]
 use nom::bits;
 use nom::combinator::eof;
 use nom::multi::many0;
@@ -6,6 +7,7 @@ use nom::multi::many_m_n;
 use nom::sequence::preceded;
 use nom::sequence::terminated;
 use nom::sequence::tuple;
+use nom::ErrorConvert;
 use nom::IResult;
 use std::env;
 use std::fs;
@@ -18,6 +20,19 @@ const LITERAL_GROUP_SIZE: usize = 4;
 const LITERAL_TYPE_ID: u8 = 4;
 const LENGTH_MODE_TAG: u8 = 0;
 const NUMBER_OF_SUBPACKETS_MODE_TAG: u8 = 1;
+
+#[derive(Debug, Clone)]
+enum PacketParseErrorKind {
+    Nom(nom::error::ErrorKind),
+    SubpacketLengthTooLong(usize),
+}
+
+#[derive(Debug, Clone)]
+struct PacketParseError {
+    data: (Vec<u8>, usize),
+    kind: PacketParseErrorKind,
+    next: Box<Option<PacketParseError>>,
+}
 
 #[derive(Debug, Clone)]
 enum Data {
@@ -41,15 +56,60 @@ struct RawPacketHeader {
     type_id: u8,
 }
 
-fn parse_version(data: (&[u8], usize)) -> IResult<(&[u8], usize), u8> {
+impl PacketParseError {
+    fn from_bits_error(input: (&[u8], usize), kind: PacketParseErrorKind) -> Self {
+        let copied_input = input.0.iter().copied().collect();
+        Self {
+            data: (copied_input, input.1),
+            kind,
+            next: Box::new(None),
+        }
+    }
+}
+
+impl nom::error::ParseError<(&[u8], usize)> for PacketParseError {
+    fn from_error_kind(input: (&[u8], usize), kind: nom::error::ErrorKind) -> Self {
+        Self::from_bits_error(input, PacketParseErrorKind::Nom(kind))
+    }
+
+    fn append(input: (&[u8], usize), kind: nom::error::ErrorKind, other: Self) -> Self {
+        let mut err = Self::from_error_kind(input, kind);
+        err.next = Box::new(Some(other));
+
+        err
+    }
+}
+
+impl nom::error::ParseError<&[u8]> for PacketParseError {
+    fn from_error_kind(input: &[u8], kind: nom::error::ErrorKind) -> Self {
+        Self::from_bits_error((input, 0), PacketParseErrorKind::Nom(kind))
+    }
+
+    fn append(input: &[u8], kind: nom::error::ErrorKind, other: Self) -> Self {
+        let mut err = Self::from_error_kind(input, kind);
+        err.next = Box::new(Some(other));
+
+        err
+    }
+}
+
+// This is such a stupid hack, but Nom needs the ability to call ErrorConvert from one type to another
+// when going from bits to bytes. This satisfies that interface
+impl ErrorConvert<PacketParseError> for PacketParseError {
+    fn convert(self) -> PacketParseError {
+        self
+    }
+}
+
+fn parse_version(data: (&[u8], usize)) -> IResult<(&[u8], usize), u8, PacketParseError> {
     bits::complete::take(VERSION_SIZE)(data)
 }
 
-fn parse_type_id(data: (&[u8], usize)) -> IResult<(&[u8], usize), u8> {
+fn parse_type_id(data: (&[u8], usize)) -> IResult<(&[u8], usize), u8, PacketParseError> {
     bits::complete::take(TYPE_ID_SIZE)(data)
 }
 
-fn parse_literal(data: (&[u8], usize)) -> IResult<(&[u8], usize), u64> {
+fn parse_literal(data: (&[u8], usize)) -> IResult<(&[u8], usize), u64, PacketParseError> {
     let (remaining, (groups, last_group)) = tuple((
         many0(preceded(
             bits::complete::tag(1, 1_usize),
@@ -65,19 +125,22 @@ fn parse_literal(data: (&[u8], usize)) -> IResult<(&[u8], usize), u64> {
         .into_iter()
         .chain(iter::once(last_group))
         .fold(0_u64, |total, group: u8| {
-            (total << LITERAL_GROUP_SIZE) | (group as u64)
+            (total << LITERAL_GROUP_SIZE) | u64::from(group)
         });
 
     Ok((remaining, literal))
 }
 
-fn parse_operator_data(data: (&[u8], usize)) -> IResult<(&[u8], usize), Vec<Packet>> {
+fn parse_operator_data(
+    data: (&[u8], usize),
+) -> IResult<(&[u8], usize), Vec<Packet>, PacketParseError> {
     let (remaining, length_tag) = bits::complete::take::<_, u8, _, _>(1_usize)(data)?;
     let length = if length_tag == LENGTH_MODE_TAG {
         15_usize
     } else {
         11_usize
     };
+
     let (after_mode_data, mode_data) = bits::complete::take(length)(remaining)?;
     if length_tag == NUMBER_OF_SUBPACKETS_MODE_TAG {
         many_m_n(mode_data, mode_data, parse_packet)(after_mode_data)
@@ -87,11 +150,21 @@ fn parse_operator_data(data: (&[u8], usize)) -> IResult<(&[u8], usize), Vec<Pack
         let mut packets = vec![];
         while length_remaining > 0 {
             let (packet_remaining, packet) = parse_packet(after_packets)?;
-            // TODO: This should not be a panic; it's implicit here.
-            packets.push(packet);
             let length_left_after_packet = packet_remaining.0.len() * 8 - packet_remaining.1;
             let length_left_after_old_after = after_packets.0.len() * 8 - after_packets.1;
             let length_read = length_left_after_old_after - length_left_after_packet;
+            if length_read > length_remaining {
+                let copied_input = after_packets.0.iter().copied().collect();
+                let err = PacketParseError {
+                    data: (copied_input, after_packets.1),
+                    kind: PacketParseErrorKind::SubpacketLengthTooLong(length_read),
+                    next: Box::new(None),
+                };
+
+                return Err(nom::Err::Error(err));
+            }
+
+            packets.push(packet);
             after_packets = packet_remaining;
             length_remaining -= length_read;
         }
@@ -100,7 +173,9 @@ fn parse_operator_data(data: (&[u8], usize)) -> IResult<(&[u8], usize), Vec<Pack
     }
 }
 
-fn parse_header_components(data: (&[u8], usize)) -> IResult<(&[u8], usize), RawPacketHeader> {
+fn parse_header_components(
+    data: (&[u8], usize),
+) -> IResult<(&[u8], usize), RawPacketHeader, PacketParseError> {
     let (after_header, (version, type_id)) = tuple((parse_version, parse_type_id))(data)?;
 
     let header = RawPacketHeader { version, type_id };
@@ -108,23 +183,20 @@ fn parse_header_components(data: (&[u8], usize)) -> IResult<(&[u8], usize), RawP
     Ok((after_header, header))
 }
 
-fn parse_packet(data: (&[u8], usize)) -> IResult<(&[u8], usize), Packet> {
+fn parse_packet(data: (&[u8], usize)) -> IResult<(&[u8], usize), Packet, PacketParseError> {
     let (after_header, header) = parse_header_components(data)?;
-    let (after_data, packet_data) = match header.type_id {
-        LITERAL_TYPE_ID => {
-            let (remaining, literal) = parse_literal(after_header)?;
-            (remaining, Data::Literal(literal))
-        }
-        _ => {
-            let (remaining, sub_packets) = parse_operator_data(after_header)?;
-            (
-                remaining,
-                Data::Operator {
-                    type_id: header.type_id,
-                    sub_packets,
-                },
-            )
-        }
+    let (after_data, packet_data) = if header.type_id == LITERAL_TYPE_ID {
+        let (remaining, literal) = parse_literal(after_header)?;
+        (remaining, Data::Literal(literal))
+    } else {
+        let (remaining, sub_packets) = parse_operator_data(after_header)?;
+        (
+            remaining,
+            Data::Operator {
+                type_id: header.type_id,
+                sub_packets,
+            },
+        )
     };
 
     let packet = Packet {
@@ -135,7 +207,7 @@ fn parse_packet(data: (&[u8], usize)) -> IResult<(&[u8], usize), Packet> {
     Ok((after_data, packet))
 }
 
-fn parse_packet_stream(data: &[u8]) -> IResult<&[u8], Vec<Packet>> {
+fn parse_packet_stream(data: &[u8]) -> IResult<&[u8], Vec<Packet>, PacketParseError> {
     terminated(many1(bits(parse_packet)), eof)(data)
 }
 
