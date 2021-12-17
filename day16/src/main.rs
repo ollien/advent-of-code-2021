@@ -1,14 +1,11 @@
 #![warn(clippy::all, clippy::pedantic)]
-use nom::bits;
-use nom::combinator::eof;
-use nom::multi::many0;
-use nom::multi::many1;
-use nom::multi::many_m_n;
-use nom::sequence::preceded;
-use nom::sequence::terminated;
-use nom::sequence::tuple;
-use nom::ErrorConvert;
-use nom::IResult;
+use nom::{
+    bits,
+    combinator::eof,
+    multi::{many0, many_m_n},
+    sequence::{preceded, terminated, tuple},
+    ErrorConvert, IResult,
+};
 use std::env;
 use std::fs;
 use std::iter;
@@ -17,9 +14,17 @@ use std::num::ParseIntError;
 const TYPE_ID_SIZE: usize = 3;
 const VERSION_SIZE: usize = 3;
 const LITERAL_GROUP_SIZE: usize = 4;
-const LITERAL_TYPE_ID: u8 = 4;
 const LENGTH_MODE_TAG: u8 = 0;
 const NUMBER_OF_SUBPACKETS_MODE_TAG: u8 = 1;
+
+const LITERAL_TYPE_ID: u8 = 4;
+const SUM_TYPE_ID: u8 = 0;
+const PRODUCT_TYPE_ID: u8 = 1;
+const MINIMUM_TYPE_ID: u8 = 2;
+const MAXIMUM_TYPE_ID: u8 = 3;
+const GREATER_THAN_TYPE_ID: u8 = 5;
+const LESS_THAN_TYPE_ID: u8 = 6;
+const EQUAL_TO_TYPE_ID: u8 = 7;
 
 #[derive(Debug, Clone)]
 enum PacketParseErrorKind {
@@ -27,6 +32,8 @@ enum PacketParseErrorKind {
     SubpacketLengthTooLong(usize),
 }
 
+// We have fields here that are good error info, but not used otherwise
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 struct PacketParseError {
     data: (Vec<u8>, usize),
@@ -207,10 +214,12 @@ fn parse_packet(data: (&[u8], usize)) -> IResult<(&[u8], usize), Packet, PacketP
     Ok((after_data, packet))
 }
 
-fn parse_packet_stream(data: &[u8]) -> IResult<&[u8], Vec<Packet>, PacketParseError> {
-    terminated(many1(bits(parse_packet)), eof)(data)
+/// Parse the root level packet
+fn parse_packet_stream(data: &[u8]) -> IResult<&[u8], Packet, PacketParseError> {
+    terminated(bits(parse_packet), eof)(data)
 }
 
+/// Converts the input string (which is hex) to bytes we can process
 fn convert_input_to_bytes(input: &str) -> Result<Vec<u8>, ParseIntError> {
     // https://stackoverflow.com/a/52992629
     (0..input.len())
@@ -219,22 +228,50 @@ fn convert_input_to_bytes(input: &str) -> Result<Vec<u8>, ParseIntError> {
         .collect()
 }
 
-fn part1(packets: &[Packet]) -> u32 {
-    packets
-        .iter()
-        .map(|packet| {
-            let packet_version = u32::from(packet.version);
-            let subpacket_total = match &packet.data {
-                Data::Literal(_) => 0,
-                Data::Operator {
-                    type_id: _,
-                    sub_packets,
-                } => part1(sub_packets),
-            };
+fn part1(packet: &Packet) -> u32 {
+    let packet_version = u32::from(packet.version);
+    let subpacket_total = match &packet.data {
+        Data::Literal(_) => 0,
+        Data::Operator {
+            type_id: _,
+            sub_packets,
+        } => sub_packets.iter().map(part1).sum(),
+    };
 
-            subpacket_total + packet_version
-        })
-        .sum()
+    subpacket_total + packet_version
+}
+
+fn part2(packet: &Packet) -> u64 {
+    let evalute_operator = |type_id, sub_packets: &[Packet]| -> u64 {
+        let evalutated_subpacket_iter = sub_packets.iter().map(part2);
+        match type_id {
+            SUM_TYPE_ID => evalutated_subpacket_iter.sum(),
+            PRODUCT_TYPE_ID => evalutated_subpacket_iter.product(),
+            MINIMUM_TYPE_ID => evalutated_subpacket_iter.min().expect("Puzzle guarantees minimum packets will have at least one element, but the opposite was encountered"),
+            MAXIMUM_TYPE_ID => evalutated_subpacket_iter.max().expect("Puzzle guarantees maximum packets will have at least one element, but the opposite was encountered"),
+            EQUAL_TO_TYPE_ID | GREATER_THAN_TYPE_ID | LESS_THAN_TYPE_ID  => {
+                let operations = evalutated_subpacket_iter.collect::<Vec<_>>();
+                assert_eq!(operations.len(), 2, "Puzzle guarantees comparison operations will have two subpackets, but we encountered one with {}", operations.len());
+                let comparison_res = match type_id {
+                    EQUAL_TO_TYPE_ID => operations[0] == operations[1],
+                    GREATER_THAN_TYPE_ID => operations[0] > operations[1],
+                    LESS_THAN_TYPE_ID => operations[0] < operations[1],
+                    _ => panic!("somehow matched that the type id was a comparison operator, but did not encounter one"),
+                };
+
+                if comparison_res { 1 } else { 0 }
+            }
+            _ => panic!("Unexpected operator id {}", type_id),
+        }
+    };
+
+    match &packet.data {
+        &Data::Literal(n) => n,
+        Data::Operator {
+            type_id,
+            sub_packets,
+        } => evalute_operator(*type_id, sub_packets),
+    }
 }
 
 fn main() {
@@ -242,12 +279,13 @@ fn main() {
     let full_input = fs::read_to_string(input_file_name).expect("Could not read input file");
     let input = full_input.trim();
     let input_bytes = convert_input_to_bytes(input).expect("Could not convert input to bytes");
-    let (remaining, input_packets) =
+    let (remaining, input_packet) =
         parse_packet_stream(&input_bytes).expect("Failed to parse input");
     assert!(
         remaining.is_empty(),
         "parser was supposed to guarantee we parsed the full input, but it did not"
     );
 
-    println!("Part 1: {}", part1(&input_packets));
+    println!("Part 1: {}", part1(&input_packet));
+    println!("Part 2: {}", part2(&input_packet));
 }
