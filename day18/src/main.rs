@@ -1,5 +1,5 @@
 #![warn(clippy::all, clippy::pedantic)]
-use std::collections::HashSet;
+use itertools::Itertools;
 use std::env;
 use std::fmt;
 use std::fmt::Debug;
@@ -494,6 +494,29 @@ fn part1(input_pairs: &[InputPair]) -> u32 {
     problem_tree.magnitude()
 }
 
+fn part2(input_pairs: &[InputPair]) -> u32 {
+    input_pairs
+        .into_iter()
+        .permutations(2)
+        .map(|pairs| {
+            let pair1 = pairs[0];
+            let pair2 = pairs[1];
+
+            let mut tree1 = if let InputPair::Pair(left, right) = pair1 {
+                ProblemTree::build(&*left, &*right)
+            } else {
+                panic!("input pair should be a pair");
+            };
+
+            tree1.insert_root_sibling_input_pair(pair2, Direction::Right);
+            tree1.reduce();
+
+            tree1.magnitude()
+        })
+        .max()
+        .expect("should be at least one input pair")
+}
+
 fn print_tree(problem_tree: &ProblemTree) {
     println!("{:?}", Dot::with_config(&problem_tree.graph, &[]));
     // let mut to_visit = vec![(0, problem_tree.root_idx)];
@@ -538,4 +561,5 @@ fn main() {
     // .expect("did not find input problem");
 
     println!("Part 1: {}", part1(&all_pairs));
+    println!("Part 2: {}", part2(&all_pairs));
 }
