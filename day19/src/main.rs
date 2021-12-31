@@ -267,10 +267,15 @@ fn find_scanner_positions(input_scanners: &[Scanner]) -> Vec<(Scanner, (i32, i32
     while scanner_positions.len() < scanners.len() {
         for i in 0..scanners.len() {
             for j in 0..scanners.len() {
-                if i == j || scanner_positions.contains_key(&j) {
+                if i == j
+                    || scanner_positions.contains_key(&j)
+                    || !scanner_positions.contains_key(&i)
+                {
                     continue;
                 }
 
+                // yes this is messy but here are the elemeents
+                // (the position of the scanner, the number of common positions, the rotated scanner)
                 let mut max: Option<((i32, i32, i32), usize, Scanner)> = None;
                 for rotated_scanner2 in scanners[j].generate_all_rotations() {
                     let differences = scanners[i].scanned_points.iter().flat_map(|(x1, y1, z1)| {
@@ -293,13 +298,9 @@ fn find_scanner_positions(input_scanners: &[Scanner]) -> Vec<(Scanner, (i32, i32
                 }
 
                 let (relative_scanner_pos, _, updated_scanner2) = max.unwrap();
-                let scanner1_pos_candidate = scanner_positions.get(&i);
-                if scanner1_pos_candidate.is_none() {
-                    // We can't give this scanner's position if we don't know the position of the other
-                    continue;
-                }
 
-                let (scanner1_x, scanner1_y, scanner1_z) = scanner1_pos_candidate.unwrap();
+                // Already asserted to exist
+                let (scanner1_x, scanner1_y, scanner1_z) = scanner_positions.get(&i).unwrap();
                 let (scanner2_rel_x, scanner2_rel_y, scanner2_rel_z) = relative_scanner_pos;
                 let scanner2_pos = (
                     scanner1_x + scanner2_rel_x,
