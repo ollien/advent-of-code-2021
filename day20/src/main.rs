@@ -6,7 +6,6 @@ use std::env;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::mem;
 use thiserror::Error;
 
 const BRIGHT_CHAR: char = '#';
@@ -84,11 +83,11 @@ impl Board {
         Ok(board)
     }
 
-    fn get_enhancement_address(&self, row: isize, col: isize, default: &BoardTile) -> u16 {
+    fn get_enhancement_address(&self, row: isize, col: isize, default: BoardTile) -> u16 {
         let mut address = 0;
         for d_row in -1..=1 {
             for d_col in -1..=1 {
-                let tile = self.0.get(&(d_row + row, d_col + col)).unwrap_or(default);
+                let tile = self.0.get(&(d_row + row, d_col + col)).unwrap_or(&default);
 
                 let bit = u8::from(*tile);
                 address = address * 2 + u16::from(bit);
@@ -121,7 +120,7 @@ impl Board {
     fn enhance(
         self,
         enhancement_algorithm: &[BoardTile],
-        default: &BoardTile,
+        default: BoardTile,
     ) -> Result<Self, SimulationError> {
         let maybe_bounds = self.get_bounds();
         if maybe_bounds.is_none() {
@@ -183,19 +182,40 @@ fn parse_enhancement_algorithm(input_algorithm: &str) -> Result<Vec<BoardTile>, 
     input_algorithm.chars().map(char::try_into).collect()
 }
 
-fn part1(board: Board, enhancement_algorithtm: &[BoardTile]) -> usize {
-    // If the enhancement algorithm has a bright first tile, the dark region is going to become
-    // bright immediately after the first step.
-    let default_after_first = enhancement_algorithtm[0];
+fn run(mut board: Board, enhancement_algorithtm: &[BoardTile], num_iterations: u32) -> usize {
+    let all_zeroes_transformation = enhancement_algorithtm[0];
+    let all_ones_transformation = enhancement_algorithtm[enhancement_algorithtm.len() - 1];
+    let (evens_default, odds_default) = {
+        match (all_zeroes_transformation, all_ones_transformation) {
+            // If, after encountering either an all dark or all bright region, we turn bright,
+            // after the first step the default should always be bright.
+            (BoardTile::Bright, BoardTile::Bright) => (BoardTile::Bright, BoardTile::Bright),
+            // If, after encountering either an all dark region we turn bright, and vice versa,
+            // we must alternate on every step
+            (BoardTile::Bright, BoardTile::Dark) => (BoardTile::Dark, BoardTile::Bright),
+            // But if dark always maps to dark, there's no need to change anything.
+            (BoardTile::Dark, _) => (BoardTile::Dark, BoardTile::Dark),
+        }
+    };
+
+    for i in 0..num_iterations {
+        let default = if i == 0 {
+            BoardTile::Dark
+        } else if i % 2 == 0 {
+            evens_default
+        } else {
+            odds_default
+        };
+
+        board = board
+            .enhance(enhancement_algorithtm, default)
+            .expect("failed to run simulation");
+    }
 
     board
-        .enhance(enhancement_algorithtm, &BoardTile::Dark)
-        .expect("failed to run simulation the first time")
-        .enhance(enhancement_algorithtm, &default_after_first)
-        .expect("failed to run simulation a second time")
         .0
         .values()
-        .filter(|tile| mem::discriminant(*tile) == mem::discriminant(&BoardTile::Bright))
+        .filter(|tile| matches!(tile, &BoardTile::Bright))
         .count()
 }
 
@@ -219,5 +239,6 @@ fn main() {
     let enhancement_algorithm = parse_enhancement_algorithm(&raw_enhancement_algorithm)
         .expect("Failed to parse input algorithm");
 
-    println!("Part 1: {}", part1(board, &enhancement_algorithm));
+    println!("Part 1: {}", run(board.clone(), &enhancement_algorithm, 2));
+    println!("Part 2: {}", run(board, &enhancement_algorithm, 50));
 }
